@@ -3,7 +3,7 @@
 Every Scaffold version, newest first. *Migration* lists what a project has to do
 by hand when upgrading to that version, beyond taking over the changed files.
 
-## Unreleased
+## v0.2
 
 Support for stacked pull requests (`gh stack`), see *Stacked pull requests* in
 `github/README.md`.
