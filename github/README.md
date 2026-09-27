@@ -43,12 +43,16 @@ labels in the target repository:
 
 Issue types (organisation setting) used by the changelog: `Feature`, `Bug`, `Task`.
 
-Issues are linked to pull requests through a closing reference (`Closes #12`) in
-the PR description. If there is none, the issue number is taken from the branch
-name: `feat/12-some-title` or `12-some-title`.
+A pull request is linked to the issues it closes through closing keywords in its
+description (`Closes #12`, `Fixes #12`, `Resolves #12`). They are read from the
+description directly as well as from GitHub's own links, because GitHub does not
+always link them for a pull request that targets another branch, as the upper
+layers of a stack do. Only if there are none, the issue number is taken from the
+branch name: `feat/12-some-title` or `12-some-title`. All three workflows resolve
+issues this way.
 
-Commit subjects on main must contain the issue number (`feat(app #12): …`),
-because the release changelog is collected from the commits since the last release.
+Commit subjects only count for direct pushes to main, which have no pull request:
+there they must contain the issue number (`feat(app #12): …`).
 
 ## Workflows
 
@@ -57,10 +61,13 @@ because the release changelog is collected from the commits since the last relea
 Runs on every push to `main` and manually via *Run workflow*.
 
 1. **setup** – generates the build tag (`YYYYMMDD_HHMM`), timestamp and display
-   date, and reads the `project:*` labels of the merged pull request to decide what
-   to build. Without any labels (direct push, manual run) everything is built. A
-   pull request labelled only `project:other` builds nothing; one without any
-   deciding label also builds nothing, but warns.
+   date, and decides what to build from the `project:*` labels of every pull
+   request merged since the last successful deploy (not just the last one: a
+   stack lands as several pull requests in one push, and a failed or replaced run
+   is caught up by the next). Pull requests are matched through their merge commit.
+   Without any labels (direct push, manual run) everything is built. Pull requests
+   labelled only `project:other` build nothing; without any deciding label nothing
+   is built either, but with a warning.
 2. **build-server** / **build-web** / **build-docker** – on `project:server` or
    `project:webapp`: builds the fat jar and the web app, then builds the Docker image
    and pushes it as `$DOCKER_IMAGE:latest` to GHCR.
@@ -70,6 +77,9 @@ Runs on every push to `main` and manually via *Run workflow*.
 4. **create_release** – only when the APKs were built (a release is the app's
    delivery vehicle). Generates the changelog, and creates a GitHub release
    `v<build tag>` with the APKs, `changelog*.json` and `CHANGELOG.md` as the body.
+
+Deploys run one at a time (`concurrency: deploy`), so two runs never share a
+build tag or list the same changelog entries twice.
 
 A manual run defaults to a **draft**: the Docker image is built but not pushed, and
 the release is created as a draft that is not marked as latest. Useful to rehearse
@@ -84,6 +94,9 @@ to the step summary. The check fails on broken or misnamed entries and on a miss
 entry for a feature; everything else is a warning.
 
 Issues that carry neither `project:app` nor an entry directory need no changelog.
+
+In a stack, a Feature's entry is only required in the topmost open layer that
+closes the issue; layers below it get a warning pointing there instead of an error.
 
 ### `sync-labels.yaml`
 
@@ -120,9 +133,10 @@ Any field can be translated under `localized`, missing fields fall back to the d
 }
 ```
 
-`generate_changelog.main.kts` collects all issues referenced in the commit subjects
-since the last release, keeps those labelled `project:app`, and writes to
-`build/changelog/`:
+`generate_changelog.main.kts` collects the issues closed by every pull request
+merged since the last release (matched through their merge commits, so every
+layer of a stack counts), plus the issue numbers in the subjects of direct pushes.
+It keeps those labelled `project:app` and writes to `build/changelog/`:
 
 - `changelog.json` (English) and `changelog.<language>.json` for every language
   found, grouped into `features`, `fixes` and `tasks` and keyed by issue number.
@@ -132,6 +146,31 @@ since the last release, keeps those labelled `project:app`, and writes to
 Both scripts run locally as well, e.g. `kotlin .github/check_changelog.main.kts` on
 a feature branch, or `kotlin .github/generate_changelog.main.kts v20260101_1200`.
 They need `kotlin` and `gh` on the path.
+
+## Stacked pull requests
+
+Everything above works for stacks of pull requests, as created with
+[`gh stack`](https://github.com/github/gh-stack) or by hand (each pull request
+based on the branch of the one below). Enable stacked pull requests in the
+repository settings to use `gh stack`.
+
+- **One concern per layer**, each with its own branch and pull request. Name the
+  branches after the issue they work on, e.g. `feat/12-auth`, `feat/12-api`; a
+  stack may span several issues.
+- **Every layer names its issues** with closing keywords in its description, even
+  if the layer below closes the same issue. Layers are checked and built on their
+  own, and a layer that is merged alone must still find its issue.
+- **Labels go on each layer** for what that layer touches. `sync-labels.yaml`
+  copies them to the issue, and from the issue to every layer that closes it.
+- **The changelog entry** of a Feature lives in the topmost layer that closes its
+  issue, or in any layer below it. Only the topmost one fails without it.
+- **Merge with `gh stack merge`**. The whole stack arrives on main in one push
+  and is deployed and released as one: the release lists the issues of all layers,
+  and the build covers the labels of all layers.
+
+Merging only the lower part of a stack is fine as well. A Feature whose entry
+lives in a layer that is not merged yet is left out of that release, and shows up
+in the next one, once its entry has arrived.
 
 ## Parameters
 
