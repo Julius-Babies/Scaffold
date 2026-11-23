@@ -3,7 +3,9 @@
 Every Scaffold version, newest first. *Migration* lists what a project has to do
 by hand when upgrading to that version, beyond taking over the changed files.
 
-## Unreleased
+## v0.3
+
+Dependency updates: actions on Node 24, newer Kotlin for the changelog scripts.
 
 ### Changed
 
