@@ -3,6 +3,23 @@
 Every Scaffold version, newest first. *Migration* lists what a project has to do
 by hand when upgrading to that version, beyond taking over the changed files.
 
+## v0.3
+
+Dependency updates: actions on Node 24, newer Kotlin for the changelog scripts.
+
+### Changed
+
+- `github/`: actions updated to their latest major versions: `actions/checkout`
+  v7, `actions/setup-java` v6, `actions/cache` v6, `softprops/action-gh-release`
+  v3. All run on Node 24.
+- `github/`: Kotlin for the changelog scripts updated to 2.4.21,
+  `kotlinx-serialization-json` to 1.13.0.
+
+### Migration
+
+- Self-hosted runners need a runner version that supports Node 24 actions
+  (2.327.1 or newer). GitHub-hosted runners need nothing.
+
 ## v0.2
 
 Support for stacked pull requests (`gh stack`), see *Stacked pull requests* in
